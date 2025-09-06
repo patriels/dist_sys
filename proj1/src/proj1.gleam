@@ -19,7 +19,7 @@ pub fn main() -> Nil {
     |> actor.start
 
   actor.send(controller.data, Start(n, k, controller.data))
-  assert actor.call(controller.data, waiting: 10, sending: Get) == 0
+  assert actor.call(controller.data, waiting: 100, sending: Get) == 0
 }
 
 pub type Message {
@@ -39,15 +39,17 @@ pub fn handle_message_controller(
       actor.continue(state)
     }
     Print(i, val) -> {
+      echo "current state " <> int.to_string(state)
       let update = state - 1
       case val {
         True -> io.println("Result " <> int.to_string(i))
         False -> Nil
       }
-      echo "current state " <> int.to_string(update)
+      echo "new state " <> int.to_string(update)
       actor.continue(update)
     }
     Get(reply) -> {
+      echo "how many times is this hit?"
       actor.send(reply, state)
       actor.continue(state)
     }
