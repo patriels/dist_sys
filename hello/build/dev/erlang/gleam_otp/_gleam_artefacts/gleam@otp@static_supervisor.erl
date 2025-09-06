@@ -50,19 +50,19 @@
 
 -type erlang_start_flags() :: any().
 
--type erlang_start_flag(AZH) :: {strategy, strategy()} |
+-type erlang_start_flag(EVY) :: {strategy, strategy()} |
     {intensity, integer()} |
     {period, integer()} |
     {auto_shutdown, auto_shutdown()} |
-    {gleam_phantom, AZH}.
+    {gleam_phantom, EVY}.
 
 -type erlang_child_spec() :: any().
 
--type erlang_child_spec_property(AZI) :: {id, integer()} |
+-type erlang_child_spec_property(EVZ) :: {id, integer()} |
     {start,
         {gleam@erlang@atom:atom_(),
             gleam@erlang@atom:atom_(),
-            list(fun(() -> {ok, gleam@otp@actor:started(AZI)} |
+            list(fun(() -> {ok, gleam@otp@actor:started(EVZ)} |
                 {error, gleam@otp@actor:start_error()}))}} |
     {restart, gleam@otp@supervision:restart()} |
     {significant, boolean()} |
