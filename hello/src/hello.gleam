@@ -1,5 +1,6 @@
 import argv
 import gleam/erlang/process.{type Subject}
+import gleam/int
 import gleam/list
 import gleam/otp/actor.{type Builder, type StartError}
 import gleam/otp/static_supervisor.{type Supervisor} as supervisor
@@ -13,8 +14,10 @@ pub fn main() {
   case params == [] {
     True -> echo "wtf?"
     False -> {
-      echo result.unwrap(list.first(params), "0")
-      echo result.unwrap(list.last(params), "0")
+      let n =
+        result.unwrap(int.parse(result.unwrap(list.first(params), "0")), 0)
+      let k = result.unwrap(int.parse(result.unwrap(list.last(params), "0")), 0)
+      echo "n = " <> int.to_string(n) <> " and k = " <> int.to_string(k)
     }
   }
   let child_spec =
@@ -42,11 +45,6 @@ pub fn main() {
     actor.new(0)
     |> actor.on_message(handle_message)
     |> actor.start
-
-  let worker =
-    supervision.worker(fn() -> Result(Subject(Int), StartError) {
-      actor.new(0, handle_message)
-    })
 
   let assert Ok(meh) =
     actor.new(0)

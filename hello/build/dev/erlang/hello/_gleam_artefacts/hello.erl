@@ -7,13 +7,13 @@
 -type message() :: {add, integer()} |
     {get, gleam@erlang@process:subject(integer())}.
 
--file("src\\hello.gleam", 62).
+-file("src\\hello.gleam", 64).
 -spec handle_message(integer(), message()) -> gleam@otp@actor:next(integer(), message()).
 handle_message(State, Message) ->
     case Message of
         {add, I} ->
             State@1 = State + I,
-            echo(State@1, nil, 66),
+            echo(State@1, nil, 68),
             gleam@otp@actor:continue(State@1);
 
         {get, Reply} ->
@@ -21,26 +21,36 @@ handle_message(State, Message) ->
             gleam@otp@actor:continue(State)
     end.
 
--file("src\\hello.gleam", 9).
+-file("src\\hello.gleam", 10).
 -spec main() -> nil.
 main() ->
     Args = argv:load(),
-    echo(erlang:element(4, Args), nil, 11),
+    echo(erlang:element(4, Args), nil, 12),
     Params = gleam@result:unwrap(gleam@list:rest(erlang:element(4, Args)), []),
     case Params =:= [] of
         true ->
-            echo(<<"wtf?"/utf8>>, nil, 14);
+            echo(<<"wtf?"/utf8>>, nil, 15);
 
         false ->
-            echo(
-                gleam@result:unwrap(gleam@list:first(Params), <<"0"/utf8>>),
-                nil,
-                16
+            echo(Params, nil, 17),
+            N = gleam@result:unwrap(
+                gleam_stdlib:parse_int(
+                    gleam@result:unwrap(gleam@list:first(Params), <<"0"/utf8>>)
+                ),
+                0
+            ),
+            K = gleam@result:unwrap(
+                gleam_stdlib:parse_int(
+                    gleam@result:unwrap(gleam@list:last(Params), <<"0"/utf8>>)
+                ),
+                0
             ),
             echo(
-                gleam@result:unwrap(gleam@list:last(Params), <<"0"/utf8>>),
+                <<<<<<"n = "/utf8, (erlang:integer_to_binary(N))/binary>>/binary,
+                        " and k = "/utf8>>/binary,
+                    (erlang:integer_to_binary(K))/binary>>,
                 nil,
-                17
+                21
             )
     end,
     Child_spec = {child_specification, fun() -> _pipe = gleam@otp@actor:new(0),
@@ -48,33 +58,31 @@ main() ->
             gleam@otp@actor:start(_pipe@1) end, permanent, false, {worker, 5000}},
     _ = begin
         _pipe@2 = gleam@otp@static_supervisor:new(one_for_one),
-        _pipe@3 = gleam@otp@static_supervisor:add(_pipe@2, Child_spec),
-        gleam@otp@static_supervisor:add(_pipe@3, Child_spec)
+        gleam@otp@static_supervisor:add(_pipe@2, Child_spec)
     end,
-    Super@1 = case begin
-        _pipe@4 = gleam@otp@static_supervisor:new(one_for_one),
-        _pipe@5 = gleam@otp@static_supervisor:add(_pipe@4, Child_spec),
-        gleam@otp@static_supervisor:start(_pipe@5)
+    case begin
+        _pipe@3 = gleam@otp@static_supervisor:new(one_for_one),
+        _pipe@4 = gleam@otp@static_supervisor:add(_pipe@3, Child_spec),
+        gleam@otp@static_supervisor:start(_pipe@4)
     end of
-        {ok, Super} -> Super;
+        {ok, _} -> nil;
         _assert_fail ->
             erlang:error(#{gleam_error => let_assert,
                         message => <<"Pattern match failed, no pattern matched the value."/utf8>>,
                         file => <<?FILEPATH/utf8>>,
                         module => <<"hello"/utf8>>,
                         function => <<"main"/utf8>>,
-                        line => 36,
+                        line => 39,
                         value => _assert_fail,
-                        start => 921,
-                        'end' => 1044,
-                        pattern_start => 932,
-                        pattern_end => 941})
+                        start => 1099,
+                        'end' => 1223,
+                        pattern_start => 1110,
+                        pattern_end => 1120})
     end,
-    echo(erlang:element(3, Super@1), nil, 41),
     Actor@1 = case begin
-        _pipe@6 = gleam@otp@actor:new(0),
-        _pipe@7 = gleam@otp@actor:on_message(_pipe@6, fun handle_message/2),
-        gleam@otp@actor:start(_pipe@7)
+        _pipe@5 = gleam@otp@actor:new(0),
+        _pipe@6 = gleam@otp@actor:on_message(_pipe@5, fun handle_message/2),
+        gleam@otp@actor:start(_pipe@6)
     end of
         {ok, Actor} -> Actor;
         _assert_fail@1 ->
@@ -83,17 +91,17 @@ main() ->
                         file => <<?FILEPATH/utf8>>,
                         module => <<"hello"/utf8>>,
                         function => <<"main"/utf8>>,
-                        line => 43,
+                        line => 45,
                         value => _assert_fail@1,
-                        start => 1086,
-                        'end' => 1184,
-                        pattern_start => 1097,
-                        pattern_end => 1106})
+                        start => 1247,
+                        'end' => 1345,
+                        pattern_start => 1258,
+                        pattern_end => 1267})
     end,
     Meh@1 = case begin
-        _pipe@8 = gleam@otp@actor:new(0),
-        _pipe@9 = gleam@otp@actor:on_message(_pipe@8, fun handle_message/2),
-        gleam@otp@actor:start(_pipe@9)
+        _pipe@7 = gleam@otp@actor:new(0),
+        _pipe@8 = gleam@otp@actor:on_message(_pipe@7, fun handle_message/2),
+        gleam@otp@actor:start(_pipe@8)
     end of
         {ok, Meh} -> Meh;
         _assert_fail@2 ->
@@ -102,12 +110,12 @@ main() ->
                         file => <<?FILEPATH/utf8>>,
                         module => <<"hello"/utf8>>,
                         function => <<"main"/utf8>>,
-                        line => 48,
+                        line => 50,
                         value => _assert_fail@2,
-                        start => 1188,
-                        'end' => 1284,
-                        pattern_start => 1199,
-                        pattern_end => 1206})
+                        start => 1349,
+                        'end' => 1445,
+                        pattern_start => 1360,
+                        pattern_end => 1367})
     end,
     gleam@otp@actor:send(erlang:element(3, Actor@1), {add, 5}),
     gleam@otp@actor:send(erlang:element(3, Actor@1), {add, 3}),
@@ -125,22 +133,22 @@ main() ->
                 file => <<?FILEPATH/utf8>>,
                 module => <<"hello"/utf8>>,
                 function => <<"main"/utf8>>,
-                line => 59,
+                line => 61,
                 kind => binary_operator,
                 operator => '==',
                 left => #{kind => expression,
                     value => _assert_subject,
-                    start => 1466,
-                    'end' => 1515
+                    start => 1627,
+                    'end' => 1676
                     },
                 right => #{kind => literal,
                     value => _assert_subject@1,
-                    start => 1519,
-                    'end' => 1520
+                    start => 1680,
+                    'end' => 1681
                     },
-                start => 1459,
-                'end' => 1520,
-                expression_start => 1466})
+                start => 1620,
+                'end' => 1681,
+                expression_start => 1627})
     end.
 
 -define(is_lowercase_char(X),

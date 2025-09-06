@@ -6,8 +6,8 @@ import gleam/io
 import gleam/otp/actor
 
 pub fn main() -> Nil {
-  let n = 40
-  let k = 24
+  let n = 1_000_000
+  let k = 4
 
   let assert Ok(controller) =
     actor.new(n)
@@ -45,16 +45,16 @@ pub fn handle_message_controller(
         |> actor.on_message(starter_handler)
         |> actor.start
       actor.send(starter.data, SpinUp(n, k, subject))
-      echo "started with " <> int.to_string(state) <> " jobs"
+      //echo "started with " <> int.to_string(state) <> " jobs"
       actor.continue(state)
     }
     Print(i, sum) -> {
       let check = perfect_square(sum)
       case check {
         True -> io.println("Result " <> int.to_string(i))
-        False -> Nil
+        False -> io.println("Flop")
       }
-      echo "new state " <> int.to_string(state - 1)
+      //echo "new state " <> int.to_string(state - 1)
       actor.continue(state - 1)
     }
     Get(reply) -> {
@@ -87,7 +87,6 @@ pub fn create_worker(n: Int, k: Int, supervisor: Subject(Message)) -> Nil {
         |> actor.start
 
       actor.send(actor.data, Sum(n + k - 1, k, n, supervisor))
-      echo "Created worker for n = " <> int.to_string(n)
       create_worker(n - 1, k, supervisor)
     }
     False -> {
@@ -104,12 +103,7 @@ pub fn handle_message_worker(state: Bool, message: Msg) -> actor.Next(Bool, Msg)
   case message {
     Sum(n, l, worker, supervisor) -> {
       let sum = sum_of_squares_for_range(n, l, worker)
-      echo "sum for worker "
-        <> int.to_string(worker)
-        <> " = "
-        <> int.to_string(sum)
       actor.send(supervisor, Print(n - l + 1, sum))
-      echo "Sent actor info for worker " <> int.to_string(worker)
       actor.continue(state)
     }
   }
@@ -119,12 +113,6 @@ pub fn sum_of_squares_for_range(n: Int, l: Int, worker: Int) -> Int {
   case l {
     0 -> 0
     _ -> {
-      echo "squaring num "
-        <> int.to_string(n)
-        <> " where l is "
-        <> int.to_string(l)
-        <> " and worker is "
-        <> int.to_string(worker)
       let sqr = n * n
       sqr + sum_of_squares_for_range({ n - 1 }, { l - 1 }, worker)
     }
@@ -132,7 +120,6 @@ pub fn sum_of_squares_for_range(n: Int, l: Int, worker: Int) -> Int {
 }
 
 pub fn perfect_square(n: Int) -> Bool {
-  echo "checking if sum is perfect square"
   let sq_rt = float.square_root(int.to_float(n))
   case sq_rt {
     Ok(num) -> {
