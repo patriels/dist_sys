@@ -1,7 +1,7 @@
 //import gleam/bool
+import gleam/bool
 import gleam/erlang/process.{type Subject}
-
-//import gleam/float
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/result
@@ -10,30 +10,29 @@ import gleam/result
 import gleam/otp/actor
 
 pub fn main() -> Nil {
-  echo result.unwrap(int.square_root(25), 0.0) == 5.0
-  Nil
-  //let num = 3
-  //let size = 2
-  //let assert Ok(controller) =
-  //actor.new(0)
-  //|> actor.on_message(handle_message_controller)
-  //|> actor.start
-  //actor.send(controller.data, Start(num, size - 1))
-  //assert actor.call(controller.data, waiting: 20, sending: Get) == 0
+  let n = 3
+  let k = 2
+  let assert Ok(controller) =
+    actor.new(0)
+    |> actor.on_message(handle_message_controller)
+    |> actor.start
+
+  actor.send(controller.data, Start(n, k))
+  assert actor.call(controller.data, waiting: 10, sending: Get) == 0
 }
 
 pub fn create_worker(n: Int, k: Int) -> Nil {
   case n > 0 {
     True -> {
       let assert Ok(actor) =
-        actor.new(0)
+        actor.new(False)
         |> actor.on_message(handle_message_worker)
         |> actor.start
 
-      actor.send(actor.data, Sum(n, k))
-      io.println("Created worker for n = " <> int.to_string(n))
-      let val = n - 1
-      create_worker(val, k)
+      actor.send(actor.data, Sum(n + k - 1, k, n))
+      echo "Created worker for n = " <> int.to_string(n)
+      actor.call(actor.data, waiting: 10, sending: Perfect)
+      create_worker(n - 1, k)
     }
     False -> {
       Nil
@@ -41,12 +40,18 @@ pub fn create_worker(n: Int, k: Int) -> Nil {
   }
 }
 
-pub fn sum_of_squares_for_range(n: Int, l: Int) -> Int {
+pub fn sum_of_squares_for_range(n: Int, l: Int, worker: Int) -> Int {
   case l {
     0 -> 0
     _ -> {
+      echo "squaring num "
+        <> int.to_string(n)
+        <> " where l is "
+        <> int.to_string(l)
+        <> " and worker is "
+        <> int.to_string(worker)
       let sqr = n * n
-      sqr + sum_of_squares_for_range({ n - 1 }, { l - 1 })
+      sqr + sum_of_squares_for_range({ n - 1 }, { l - 1 }, worker)
     }
   }
 }
@@ -58,7 +63,7 @@ pub fn handle_message_controller(
   case message {
     Start(n, k) -> {
       create_worker(n, k)
-      let state = n
+      let state = state + 1
       actor.continue(state)
     }
     Print(i, val) -> {
@@ -82,16 +87,28 @@ pub fn handle_message_controller(
 }
 
 pub fn perfect_square(n: Int) -> Bool {
-  let res = int.square_root(n)
-  result.unwrap(res, 0.0) == 0.0
-  //float.subtract(sqr_rt, float.floor(sqr_rt)) == 0.0
+  echo "checking if sum is perfect square"
+  let sqr_rt = result.unwrap(int.square_root(n), 0.0)
+  float.subtract(sqr_rt, float.floor(sqr_rt)) == 0.0
 }
 
-pub fn handle_message_worker(state: Int, message: Msg) -> actor.Next(Int, Msg) {
+pub fn handle_message_worker(state: Bool, message: Msg) -> actor.Next(Bool, Msg) {
   case message {
-    Sum(n, l) -> {
-      //let result = sum_squares(n, l)
-      //actor.send(controller.data, Print(l, result))
+    Sum(n, l, worker) -> {
+      let sum = sum_of_squares_for_range(n, l, worker)
+      echo "sum for worker "
+        <> int.to_string(worker)
+        <> " = "
+        <> int.to_string(sum)
+      let state = perfect_square(sum)
+      echo "Calculated sum of squares for "
+        <> int.to_string(n)
+        <> "and it was "
+        <> bool.to_string(state)
+      actor.continue(state)
+    }
+    Perfect(reply) -> {
+      actor.send(reply, state)
       actor.continue(state)
     }
   }
@@ -104,5 +121,6 @@ pub type Message {
 }
 
 pub type Msg {
-  Sum(Int, Int)
+  Sum(Int, Int, Int)
+  Perfect(Subject(Bool))
 }
