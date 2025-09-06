@@ -9,46 +9,23 @@ import gleam/result
 //import gleam/list
 import gleam/otp/actor
 
-pub type Message {
-  Start(Int, Int)
-  Print(Int, Bool)
-  Get(Subject(Int))
-}
-
-pub type Msg {
-  Sum(Int, Int, Int)
-  Perfect(Subject(Bool))
-}
-
 pub fn main() -> Nil {
   let n = 3
   let k = 2
+
   let assert Ok(controller) =
-    actor.new(0)
+    actor.new(n)
     |> actor.on_message(handle_message_controller)
     |> actor.start
 
-  actor.send(controller.data, Start(n, k))
+  actor.send(controller.data, Start(n, k, controller.data))
   assert actor.call(controller.data, waiting: 10, sending: Get) == 0
 }
 
-pub fn create_worker(n: Int, k: Int) -> Nil {
-  case n > 0 {
-    True -> {
-      let assert Ok(actor) =
-        actor.new(False)
-        |> actor.on_message(handle_message_worker)
-        |> actor.start
-
-      actor.send(actor.data, Sum(n + k - 1, k, n))
-      echo "Created worker for n = " <> int.to_string(n)
-      actor.call(actor.data, waiting: 10, sending: Perfect)
-      create_worker(n - 1, k)
-    }
-    False -> {
-      Nil
-    }
-  }
+pub type Message {
+  Start(Int, Int, Subject(Message))
+  Print(Int, Bool)
+  Get(Subject(Int))
 }
 
 pub fn handle_message_controller(
@@ -56,22 +33,19 @@ pub fn handle_message_controller(
   message: Message,
 ) -> actor.Next(Int, Message) {
   case message {
-    Start(n, k) -> {
-      create_worker(n, k)
-      let state = state + 1
+    Start(n, k, subject) -> {
+      create_worker(n, k, subject)
+      echo "started with " <> int.to_string(state) <> " jobs"
       actor.continue(state)
     }
     Print(i, val) -> {
+      let update = state - 1
       case val {
-        True -> {
-          io.println(int.to_string(i))
-        }
-        False -> {
-          Nil
-        }
+        True -> io.println("Result " <> int.to_string(i))
+        False -> Nil
       }
-      let state = state - 1
-      actor.continue(state)
+      echo "current state " <> int.to_string(update)
+      actor.continue(update)
     }
     Get(reply) -> {
       actor.send(reply, state)
@@ -81,25 +55,46 @@ pub fn handle_message_controller(
   actor.continue(state)
 }
 
-pub fn handle_message_worker(state: Bool, message: Msg) -> actor.Next(Bool, Msg) {
+pub fn create_worker(n: Int, k: Int, supervisor: Subject(Message)) -> Nil {
+  case n > 0 {
+    True -> {
+      let assert Ok(actor) =
+        actor.new(False)
+        |> actor.on_message(handle_message_worker)
+        |> actor.start
+
+      actor.send(actor.data, Sum(n + k - 1, k, n, supervisor))
+      echo "Created worker for n = " <> int.to_string(n)
+      create_worker(n - 1, k, supervisor)
+    }
+    False -> {
+      Nil
+    }
+  }
+}
+
+pub type Msg {
+  Sum(Int, Int, Int, Subject(Message))
+}
+
+pub fn handle_message_worker(
+  _state: Bool,
+  message: Msg,
+) -> actor.Next(Bool, Msg) {
   case message {
-    Sum(n, l, worker) -> {
+    Sum(n, l, worker, supervisor) -> {
       let sum = sum_of_squares_for_range(n, l, worker)
       echo "sum for worker "
         <> int.to_string(worker)
         <> " = "
         <> int.to_string(sum)
-      let state = perfect_square(sum)
+      let check = perfect_square(sum)
       echo "Calculated sum of squares for "
         <> int.to_string(n)
-        <> "and it was "
-        <> bool.to_string(state)
-
-      actor.continue(state)
-    }
-    Perfect(reply) -> {
-      actor.send(reply, state)
-      actor.continue(state)
+        <> " and it was "
+        <> bool.to_string(check)
+      actor.send(supervisor, Print(n - l + 1, check))
+      actor.stop()
     }
   }
 }
