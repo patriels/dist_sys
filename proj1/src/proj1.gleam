@@ -29,9 +29,8 @@ pub fn create_worker(n: Int, k: Int) -> Nil {
         |> actor.on_message(handle_message_worker)
         |> actor.start
 
-      actor.send(actor.data, Sum(n + k - 1, k, n))
+      actor.send(actor.data, Sum(n + k - 1, k, n, controller))
       echo "Created worker for n = " <> int.to_string(n)
-      actor.call(actor.data, waiting: 10, sending: Perfect)
       create_worker(n - 1, k)
     }
     False -> {
@@ -92,9 +91,14 @@ pub fn perfect_square(n: Int) -> Bool {
   float.subtract(sqr_rt, float.floor(sqr_rt)) == 0.0
 }
 
-pub fn handle_message_worker(state: Bool, message: Msg) -> actor.Next(Bool, Msg) {
+pub fn handle_message_worker(
+  state: Bool,
+  message: Msg,
+  worker: Int,
+  controller: Subject(Int),
+) -> actor.Next(Bool, Msg) {
   case message {
-    Sum(n, l, worker) -> {
+    Sum(n, l) -> {
       let sum = sum_of_squares_for_range(n, l, worker)
       echo "sum for worker "
         <> int.to_string(worker)
@@ -105,10 +109,7 @@ pub fn handle_message_worker(state: Bool, message: Msg) -> actor.Next(Bool, Msg)
         <> int.to_string(n)
         <> "and it was "
         <> bool.to_string(state)
-      actor.continue(state)
-    }
-    Perfect(reply) -> {
-      actor.send(reply, state)
+      actor.send(controller, Print(n, state))
       actor.continue(state)
     }
   }
@@ -121,6 +122,5 @@ pub type Message {
 }
 
 pub type Msg {
-  Sum(Int, Int, Int)
-  Perfect(Subject(Bool))
+  Sum(Int, Int, Int, Subject(Int))
 }
