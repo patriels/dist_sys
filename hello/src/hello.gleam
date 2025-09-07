@@ -20,6 +20,7 @@ pub fn main() {
       echo "n = " <> int.to_string(n) <> " and k = " <> int.to_string(k)
     }
   }
+
   let child_spec =
     supervision.ChildSpecification(
       start: fn() {
