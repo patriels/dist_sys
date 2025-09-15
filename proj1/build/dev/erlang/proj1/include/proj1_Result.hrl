@@ -1,0 +1,1 @@
+-record(result, {start :: integer(), is_perfect :: boolean()}).

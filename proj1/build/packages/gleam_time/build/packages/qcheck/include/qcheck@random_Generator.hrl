@@ -1,0 +1,1 @@
+-record(generator, {generator :: prng@random:generator(any())}).

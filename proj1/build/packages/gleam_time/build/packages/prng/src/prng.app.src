@@ -1,0 +1,10 @@
+{application, prng, [
+    {vsn, "4.0.1"},
+    {applications, [gleam_bitwise,
+                    gleam_stdlib,
+                    gleam_yielder]},
+    {description, "A Pure Random Number Generator"},
+    {modules, [prng@random,
+               prng@seed]},
+    {registered, []}
+]}.
