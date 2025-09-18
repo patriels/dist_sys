@@ -1,5 +1,5 @@
 import argv
-import gleam/erlang/process.{type Subject}
+import gleam/erlang/process.{type Subject, receive}
 import gleam/float
 import gleam/int
 import gleam/io
@@ -15,9 +15,8 @@ pub fn main() -> Nil {
   let assert Ok(args) = list.rest(argv.load().arguments)
   let len = list.length(args)
   case len {
-    4 -> {
-      //throw away app name and get num of nodes
-      let assert Ok(args) = list.rest(args)
+    3 -> {
+      //get num of nodes
       let assert Ok(num_string) = list.first(args)
       let assert Ok(n) = int.parse(num_string)
       //throw away num nodes and get topology
@@ -26,15 +25,22 @@ pub fn main() -> Nil {
       //throw away topology and get alogorithm
       let assert Ok(args) = list.rest(args)
       let assert Ok(algorithm) = list.first(args)
+      let assert Ok(monitor) =
+        actor.new(n) |> actor.on_message(monitor_handler) |> actor.start
       let empty_actors = []
-      let actors = start_workers(n, topology, algorithm, empty_actors)
+      let actors =
+        start_workers(n, topology, algorithm, empty_actors, monitor.data)
       let random_actor = find_random_actor(actors, list.length(actors))
       case algorithm {
         "gossip" -> {
           actor.send(random_actor, Gossip(8.0))
+          monitor_loop(monitor.data, 0, n)
+          Nil
         }
         "push-sum" -> {
           actor.send(random_actor, Start)
+          monitor_loop(monitor.data, 0, n)
+          Nil
         }
         _ -> {
           io.println("Invalid algorithm")
@@ -47,6 +53,48 @@ pub fn main() -> Nil {
   let duration = timestamp.difference(time_start, time_end)
   let time = duration.to_seconds(duration)
   io.println(float.to_string(time))
+}
+
+///tracker
+pub type Monitor {
+  Update
+}
+
+fn monitor_handler(state: Int, message: Monitor) -> actor.Next(Int, Monitor) {
+  case message {
+    //when update is called an actor has achieved convergence
+    Update -> {
+      case state > 0 {
+        True -> {
+          let new_state = state - 1
+          actor.continue(new_state)
+        }
+        False -> {
+          actor.stop()
+        }
+      }
+    }
+  }
+}
+
+fn monitor_loop(subject: Subject(Monitor), count: Int, total: Int) {
+  case receive(subject, 500) {
+    Ok(Update) -> {
+      let new_count = count - 1
+      case new_count == total {
+        True -> {
+          io.println("All actors reached convergence.")
+          actor.stop()
+        }
+        False -> {
+          monitor_loop(subject, new_count, total)
+        }
+      }
+    }
+    Error(_) -> {
+      monitor_loop(subject, count, total)
+    }
+  }
 }
 
 ///worker message def
@@ -67,6 +115,7 @@ pub type State {
     //stays 0 for gossip, num times unchanged for push-sum
     neighbors: List(#(Int, Subject(Message))),
     //neighbors, assigned based on topology
+    monitor: Subject(Monitor),
   )
 }
 
@@ -85,8 +134,7 @@ fn worker_handle_message(
       let curr_weight = state.val2 +. weight
       let halved_weight = curr_weight /. 2.0
       //pick random neighbor to pass half to
-      let subject =
-        find_random_actor(state.neighbors, list.length(state.neighbors))
+      let subject = rand_neighbor(state.neighbors)
       //send half of new sum and weight to neighbor
       actor.send(subject, PushSum(halved_sum, halved_weight))
 
@@ -103,12 +151,19 @@ fn worker_handle_message(
 
       case num_repeats == 3 {
         True -> {
+          actor.send(state.monitor, Update)
           actor.stop()
         }
         False -> {
           //set new state and continue
           let new_state =
-            State(halved_sum, halved_weight, num_repeats, state.neighbors)
+            State(
+              halved_sum,
+              halved_weight,
+              num_repeats,
+              state.neighbors,
+              state.monitor,
+            )
           actor.continue(new_state)
         }
       }
@@ -117,11 +172,20 @@ fn worker_handle_message(
       //if you still have more time to hear the rumor
       case state.val2 >. 0.0 {
         True -> {
+          case state.val1 == 0.0 {
+            True -> {
+              //actor has reached convergence
+              actor.send(state.monitor, Update)
+            }
+            False -> {
+              Nil
+            }
+          }
           let new_count = float.subtract(state.val2, 1.0)
-          let neighbor =
-            find_random_actor(state.neighbors, list.length(state.neighbors))
+          let neighbor = rand_neighbor(state.neighbors)
           actor.send(neighbor, Gossip(rumor))
-          let new_state = State(rumor, new_count, 0, state.neighbors)
+          let new_state =
+            State(rumor, new_count, 0, state.neighbors, state.monitor)
           actor.continue(new_state)
         }
         False -> {
@@ -133,7 +197,7 @@ fn worker_handle_message(
     }
     NeighborSetUp(neighbors) -> {
       //receive list of neighbors
-      let new_state = State(state.val1, state.val2, 0, neighbors)
+      let new_state = State(state.val1, state.val2, 0, neighbors, state.monitor)
       actor.continue(new_state)
     }
     Start -> {
@@ -146,27 +210,28 @@ fn worker_handle_message(
         find_random_actor(state.neighbors, list.length(state.neighbors))
       actor.send(subject, PushSum(halved_sum, halved_weight))
       //set up new state with half values
-      let new_state = State(halved_sum, halved_weight, 0, state.neighbors)
+      let new_state =
+        State(halved_sum, halved_weight, 0, state.neighbors, state.monitor)
       actor.continue(new_state)
     }
   }
 }
 
-pub fn build_state(n: Int, algorithm: String) {
+pub fn build_state(n: Int, algorithm: String, monitor: Subject(Monitor)) {
   case algorithm {
     "gossip" -> {
-      State(0.0, 10.0, 0, [])
+      State(0.0, 10.0, 0, [], monitor)
       //val1 represents rumor, val2 = num times node has received rumor
     }
     "push-sum" -> {
       let n_float = int.to_float(n)
 
-      State(n_float, 1.0, 0, [])
+      State(n_float, 1.0, 0, [], monitor)
       //val1 = sum, val2 = weight
     }
     _ -> {
       io.println("invalid algorithm input")
-      State(0.0, 0.0, 0, [])
+      State(0.0, 0.0, 0, [], monitor)
     }
   }
 }
@@ -176,11 +241,12 @@ pub fn start_workers(
   topology: String,
   algorithm: String,
   workers: List(#(Int, Subject(Message))),
+  monitor: Subject(Monitor),
 ) -> List(#(Int, Subject(Message))) {
   case n > 0 {
     True -> {
       //initial state will depend on the algorithm
-      let initial_state = build_state(n, algorithm)
+      let initial_state = build_state(n, algorithm, monitor)
 
       let assert Ok(actor) =
         //set up actor
@@ -191,7 +257,7 @@ pub fn start_workers(
       //add new actor to list
       let new_workers = list.append(workers, [#(n, actor.data)])
       //recurse until n actors have been made
-      start_workers(n - 1, topology, algorithm, new_workers)
+      start_workers(n - 1, topology, algorithm, new_workers, monitor)
     }
     False -> {
       //once all actors have been created, set up topology
@@ -325,8 +391,8 @@ pub fn coords_to_num(coords: #(Int, Int, Int), size: Int) -> Int {
   1 + x + y * size + z * size * size
 }
 
-pub fn find_random_actor(
-  list: List(#(Int, process.Subject(Message))),
+fn find_random_actor(
+  list: List(#(Int, Subject(Message))),
   n: Int,
 ) -> process.Subject(Message) {
   let rando = int.random(n) + 1
@@ -334,11 +400,21 @@ pub fn find_random_actor(
   pair.second(result)
 }
 
-pub fn find_random_neighbor(
-  list: List(#(Int, process.Subject(Message))),
+fn find_random_neighbor(
+  list: List(#(Int, Subject(Message))),
 ) -> #(Int, Subject(Message)) {
   let num_actors = list.length(list)
   let rando = int.random(num_actors)
   let assert Ok(result) = list.find(list, fn(x) { pair.first(x) == rando })
   result
+}
+
+pub fn rand_neighbor(
+  list: List(#(Int, Subject(Message))),
+) -> process.Subject(Message) {
+  let size = list.length(list)
+  let rando = int.random(size) + 1
+  let index_split = list.take(list, rando)
+  let assert Ok(neighbor) = list.last(index_split)
+  neighbor.1
 }
