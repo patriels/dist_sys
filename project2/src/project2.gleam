@@ -25,8 +25,11 @@ pub fn main() -> Nil {
       //throw away topology and get alogorithm
       let assert Ok(args) = list.rest(args)
       let assert Ok(algorithm) = list.first(args)
+      let assert Ok(monitor) =
+        actor.new(n) |> actor.on_message(monitor_handler) |> actor.start
       let empty_actors = []
-      let actors = start_workers(n, topology, algorithm, empty_actors)
+      let actors =
+        start_workers(n, topology, algorithm, empty_actors, monitor.data)
       let random_actor = find_random_actor(actors, list.length(actors))
       case algorithm {
         "gossip" -> {
@@ -55,6 +58,7 @@ pub type Monitor {
 
 fn monitor_handler(state: Int, message: Monitor) -> actor.Next(Int, Monitor) {
   case message {
+    //when update is called an actor has achieved convergence
     Update -> {
       case state > 0 {
         True -> {
@@ -69,10 +73,19 @@ fn monitor_handler(state: Int, message: Monitor) -> actor.Next(Int, Monitor) {
   }
 }
 
-fn monitor_check(subject: Subject(Monitor), count: Int) -> Int {
+fn monitor_check(subject: Subject(Monitor), count: Int, total: Int) -> Int {
   case receive(subject, 500) {
     Ok(Result(results)) -> {
-      todo
+      let new_count = count - 1
+      case new_count == total {
+        True -> io.println("All actors reached convergence.")
+        False -> {
+          monitor_check(subject, new_count, n)
+        }
+      }
+    }
+    Error(_) -> {
+      monitor_check(subject, count, total)
     }
   }
 }
@@ -95,6 +108,7 @@ pub type State {
     //stays 0 for gossip, num times unchanged for push-sum
     neighbors: List(#(Int, Subject(Message))),
     //neighbors, assigned based on topology
+    monitor: Subject(Monitor),
   )
 }
 
@@ -113,7 +127,7 @@ fn worker_handle_message(
       let curr_weight = state.val2 +. weight
       let halved_weight = curr_weight /. 2.0
       //pick random neighbor to pass half to
-      let subject = rand_neighbor(state.neighbors, list.length(state.neighbors))
+      let subject = rand_neighbor(state.neighbors)
       //send half of new sum and weight to neighbor
       actor.send(subject, PushSum(halved_sum, halved_weight))
 
@@ -130,6 +144,7 @@ fn worker_handle_message(
 
       case num_repeats == 3 {
         True -> {
+          actor.send(state.monitor, Update)
           actor.stop()
         }
         False -> {
@@ -144,14 +159,14 @@ fn worker_handle_message(
       //if you still have more time to hear the rumor
       case state.val2 >. 0.0 {
         True -> {
-          //case state.val1 == 0.0{
-          //True ->{
-
-          //}
-          //}
+          case state.val1 == 0.0 {
+            True -> {
+              //actor has reached convergence
+              actor.send(state.monitor, Update)
+            }
+          }
           let new_count = float.subtract(state.val2, 1.0)
-          let neighbor =
-            rand_neighbor(state.neighbors, list.length(state.neighbors))
+          let neighbor = rand_neighbor(state.neighbors)
           actor.send(neighbor, Gossip(rumor))
           let new_state = State(rumor, new_count, 0, state.neighbors)
           actor.continue(new_state)
@@ -184,21 +199,21 @@ fn worker_handle_message(
   }
 }
 
-pub fn build_state(n: Int, algorithm: String) {
+pub fn build_state(n: Int, algorithm: String, monitor: Subject(Monitor)) {
   case algorithm {
     "gossip" -> {
-      State(0.0, 10.0, 0, [])
+      State(0.0, 10.0, 0, [], monitor)
       //val1 represents rumor, val2 = num times node has received rumor
     }
     "push-sum" -> {
       let n_float = int.to_float(n)
 
-      State(n_float, 1.0, 0, [])
+      State(n_float, 1.0, 0, [], monitor)
       //val1 = sum, val2 = weight
     }
     _ -> {
       io.println("invalid algorithm input")
-      State(0.0, 0.0, 0, [])
+      State(0.0, 0.0, 0, [], monitor)
     }
   }
 }
@@ -208,11 +223,12 @@ pub fn start_workers(
   topology: String,
   algorithm: String,
   workers: List(#(Int, Subject(Message))),
+  monitor: Subject(Monitor),
 ) -> List(#(Int, Subject(Message))) {
   case n > 0 {
     True -> {
       //initial state will depend on the algorithm
-      let initial_state = build_state(n, algorithm)
+      let initial_state = build_state(n, algorithm, monitor)
 
       let assert Ok(actor) =
         //set up actor
