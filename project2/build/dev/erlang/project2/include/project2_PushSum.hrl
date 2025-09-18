@@ -1,0 +1,1 @@
+-record(push_sum, {sum :: float(), weight :: float()}).

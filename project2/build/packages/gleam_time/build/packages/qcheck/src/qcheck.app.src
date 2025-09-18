@@ -1,0 +1,15 @@
+{application, qcheck, [
+    {vsn, "1.0.0"},
+    {applications, [exception,
+                    gleam_regexp,
+                    gleam_stdlib,
+                    gleam_yielder,
+                    prng]},
+    {description, "QuickCheck-inspired property testing with integrated shrinking"},
+    {modules, [qcheck,
+               qcheck@random,
+               qcheck@shrink,
+               qcheck@test_error_message,
+               qcheck@tree]},
+    {registered, []}
+]}.

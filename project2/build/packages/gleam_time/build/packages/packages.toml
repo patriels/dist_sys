@@ -1,0 +1,11 @@
+[packages]
+prng = "4.0.1"
+gleam_stdlib = "0.63.2"
+qcheck = "1.0.0"
+gleam_bitwise = "1.3.1"
+gleeunit = "1.6.1"
+gleam_regexp = "1.1.1"
+gleam_yielder = "1.1.0"
+simplifile = "2.3.0"
+filepath = "1.1.2"
+exception = "2.1.0"

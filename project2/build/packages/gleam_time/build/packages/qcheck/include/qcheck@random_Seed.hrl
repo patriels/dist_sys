@@ -1,0 +1,1 @@
+-record(seed, {seed :: prng@seed:seed()}).

@@ -1,0 +1,1 @@
+-record(generator, {step :: fun((prng@seed:seed()) -> {any(), prng@seed:seed()})}).
